@@ -1,0 +1,102 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model Product {
+  id          Int      @id @default(autoincrement())
+  sku         String   @unique
+  name        String
+  description String?
+  price       Decimal  @default(0.00)
+  minStock    Int      @default(0)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  inventories Inventory[]
+  movements   StockMovement[]
+}
+
+model Warehouse {
+  id       Int     @id @default(autoincrement())
+  code     String  @unique
+  name     String
+  location String?
+  isActive Boolean @default(true)
+
+  locations   WarehouseLocation[]
+  inventories Inventory[]
+  movements   StockMovement[]
+}
+
+model WarehouseLocation {
+  id          Int      @id @default(autoincrement())
+  warehouseId Int
+  code        String
+  name        String
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  warehouse   Warehouse       @relation(fields: [warehouseId], references: [id])
+  inventories Inventory[]
+  movements   StockMovement[]
+
+  @@unique([warehouseId, code])
+  @@index([warehouseId])
+}
+
+model Inventory {
+  id          Int      @id @default(autoincrement())
+  productId   Int
+  warehouseId Int
+  locationId  Int?
+  quantity    Int      @default(0)
+  updatedAt   DateTime @updatedAt
+
+  product   Product            @relation(fields: [productId], references: [id])
+  warehouse Warehouse          @relation(fields: [warehouseId], references: [id])
+  location  WarehouseLocation? @relation(fields: [locationId], references: [id])
+
+  @@index([productId, warehouseId])
+  @@index([warehouseId, locationId])
+}
+
+model StockMovement {
+  id          Int      @id @default(autoincrement())
+  productId   Int
+  warehouseId Int
+  locationId  Int?
+  userId      Int?
+  type        String
+  quantity    Int
+  reference   String?
+  createdAt   DateTime @default(now())
+
+  product   Product            @relation(fields: [productId], references: [id])
+  warehouse Warehouse          @relation(fields: [warehouseId], references: [id])
+  location  WarehouseLocation? @relation(fields: [locationId], references: [id])
+  user      User?              @relation(fields: [userId], references: [id])
+
+  @@index([productId, warehouseId])
+  @@index([locationId])
+  @@index([userId])
+  @@index([createdAt])
+}
+
+model User {
+  id        Int             @id @default(autoincrement())
+  name      String
+  email     String          @unique
+  password  String
+  role      String          @default("STAFF")
+  isActive  Boolean         @default(true)
+  createdAt DateTime         @default(now())
+
+  movements StockMovement[]
+}

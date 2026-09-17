@@ -1,0 +1,210 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model Product {
+  id          Int      @id @default(autoincrement())
+  sku         String   @unique
+  name        String
+  description String?
+  price       Decimal  @default(0.00)
+  minStock    Int      @default(0)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  inventories      Inventory[]
+  movements        StockMovement[]
+  salesOrderItems  SalesOrderItem[]
+  salesReturnItems SalesReturnItem[]
+}
+
+model Warehouse {
+  id       Int     @id @default(autoincrement())
+  code     String  @unique
+  name     String
+  location String?
+  isActive Boolean @default(true)
+
+  locations    WarehouseLocation[]
+  inventories  Inventory[]
+  movements    StockMovement[]
+  salesOrders  SalesOrder[]
+  salesReturns SalesReturn[]
+}
+
+model WarehouseLocation {
+  id          Int      @id @default(autoincrement())
+  warehouseId Int
+  code        String
+  name        String
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  warehouse        Warehouse         @relation(fields: [warehouseId], references: [id])
+  inventories      Inventory[]
+  movements        StockMovement[]
+  salesReturnItems SalesReturnItem[]
+
+  @@unique([warehouseId, code])
+  @@index([warehouseId])
+}
+
+model Inventory {
+  id          Int      @id @default(autoincrement())
+  productId   Int
+  warehouseId Int
+  locationId  Int?
+  quantity    Int      @default(0)
+  updatedAt   DateTime @updatedAt
+
+  product   Product            @relation(fields: [productId], references: [id])
+  warehouse Warehouse          @relation(fields: [warehouseId], references: [id])
+  location  WarehouseLocation? @relation(fields: [locationId], references: [id])
+
+  @@index([productId, warehouseId])
+  @@index([warehouseId, locationId])
+}
+
+model StockMovement {
+  id          Int      @id @default(autoincrement())
+  productId   Int
+  warehouseId Int
+  locationId  Int?
+  userId      Int?
+  type        String
+  quantity    Int
+  reference   String?
+  createdAt   DateTime @default(now())
+
+  product   Product            @relation(fields: [productId], references: [id])
+  warehouse Warehouse          @relation(fields: [warehouseId], references: [id])
+  location  WarehouseLocation? @relation(fields: [locationId], references: [id])
+  user      User?              @relation(fields: [userId], references: [id])
+
+  @@index([productId, warehouseId])
+  @@index([locationId])
+  @@index([userId])
+  @@index([createdAt])
+}
+
+model User {
+  id        Int             @id @default(autoincrement())
+  name      String
+  email     String          @unique
+  password  String
+  role      String          @default("STAFF")
+  isActive  Boolean         @default(true)
+  createdAt DateTime        @default(now())
+  movements StockMovement[]
+}
+
+model Customer {
+  id        Int      @id @default(autoincrement())
+  name      String
+  email     String?  @unique
+  phone     String?
+  address   String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  salesOrders SalesOrder[]
+
+  @@index([name])
+}
+
+model SalesOrder {
+  id               Int      @id @default(autoincrement())
+  orderNumber      String   @unique
+  customerId       Int
+  warehouseId      Int
+  status           String   @default("DRAFT")
+  orderDate        DateTime @default(now())
+  shippingAddress  String?
+  shippingProvider String?
+  trackingNumber   String?
+  notes            String?
+  totalAmount      Decimal  @default(0.00)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  customer  Customer         @relation(fields: [customerId], references: [id])
+  warehouse Warehouse        @relation(fields: [warehouseId], references: [id])
+  items     SalesOrderItem[]
+  returns   SalesReturn[]
+
+  @@index([customerId])
+  @@index([warehouseId])
+  @@index([status])
+  @@index([orderDate])
+}
+
+model SalesOrderItem {
+  id             Int     @id @default(autoincrement())
+  salesOrderId   Int
+  productId      Int
+  quantity       Int
+  pickedQuantity Int     @default(0)
+  unitPrice      Decimal @default(0.00)
+  subtotal       Decimal @default(0.00)
+
+  salesOrder SalesOrder        @relation(fields: [salesOrderId], references: [id], onDelete: Cascade)
+  product    Product           @relation(fields: [productId], references: [id])
+  returns    SalesReturnItem[]
+
+  @@unique([salesOrderId, productId])
+  @@index([productId])
+}
+
+model SalesReturn {
+  id           Int       @id @default(autoincrement())
+  returnNumber String    @unique
+  salesOrderId Int
+  warehouseId  Int
+  status       String    @default("REQUESTED")
+  reason       String?
+  notes        String?
+  receivedAt   DateTime?
+  inspectedAt  DateTime?
+  restockedAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  salesOrder SalesOrder        @relation(fields: [salesOrderId], references: [id])
+  warehouse  Warehouse         @relation(fields: [warehouseId], references: [id])
+  items      SalesReturnItem[]
+
+  @@index([salesOrderId])
+  @@index([warehouseId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model SalesReturnItem {
+  id                Int     @id @default(autoincrement())
+  salesReturnId     Int
+  salesOrderItemId  Int
+  productId         Int
+  quantity          Int
+  condition         String  @default("GOOD")
+  restockedQuantity Int     @default(0)
+  locationId        Int?
+  notes             String?
+
+  salesReturn    SalesReturn        @relation(fields: [salesReturnId], references: [id], onDelete: Cascade)
+  salesOrderItem SalesOrderItem     @relation(fields: [salesOrderItemId], references: [id])
+  product        Product            @relation(fields: [productId], references: [id])
+  location       WarehouseLocation? @relation(fields: [locationId], references: [id])
+
+  @@index([salesReturnId])
+  @@index([salesOrderItemId])
+  @@index([productId])
+  @@index([locationId])
+}
